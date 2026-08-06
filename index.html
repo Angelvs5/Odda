@@ -2938,9 +2938,18 @@ async function votar(pid,cid,imp,forzar){
   S.votos[pid]=vt;paintPartidos();
   await api('l5_votos?partido_id=eq.'+encodeURIComponent(pid)+'&jugador=eq.'+encodeURIComponent(y),
     {method:'DELETE',prefer:'return=minimal',silencioso:true});
-  if(!ya)await api('l5_votos',{method:'POST',prefer:'return=minimal',
-    body:JSON.stringify({bankroll_id:BK,grupo_id:BK,comentario_id:cid,partido_id:pid,
-      jugador:y, importe:(imp!=null?imp:null)})});
+  if(!ya){
+    const base={bankroll_id:BK,grupo_id:BK,comentario_id:cid,partido_id:pid,jugador:y};
+    let ok=await api('l5_votos',{method:'POST',prefer:'return=minimal',silencioso:true,
+      body:JSON.stringify(imp!=null?Object.assign({importe:imp},base):base)});
+    // Si la base todavía no tiene la columna del importe, el voto se
+    // guarda igual sin ella: vale más un voto simple que ninguno.
+    if(!ok&&imp!=null){
+      ok=await api('l5_votos',{method:'POST',prefer:'return=minimal',
+        body:JSON.stringify(base)});
+      if(ok)toast('Voto guardado, pero sin el importe: falta ejecutar el SQL');
+    }
+  }
   await loadCmts();paintPartidos();
 }
 
@@ -6601,7 +6610,7 @@ async function menuMiembro(uid){
 // ══ MI CUENTA ══
 // ══ REGISTRO DE ERRORES ══
 // Guarda los últimos fallos para poder adjuntarlos si alguien nos escribe.
-const VERSION='2026.08 · v67';
+const VERSION='v71 · 6 ago';
 let errores=[];
 function anotarError(tipo,msg,extra){
   errores.push({t:new Date().toISOString(),tipo:tipo,
