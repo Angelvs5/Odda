@@ -1378,7 +1378,9 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
     </div>
   </div>
 
-<div class="bx" id="bx-instalar" style="display:none">
+<div class="apunte" id="ver-app" style="text-align:center;margin:0 0 14px;opacity:.7">Odda</div>
+
+  <div class="bx" id="bx-instalar" style="display:none">
     <div class="bx-t">Odda en tu móvil</div>
     <div style="font-size:13px;color:var(--ink2);line-height:1.55;margin-bottom:13px">
       Añádela a la pantalla de inicio y funcionará como una app: pantalla completa,
@@ -6447,7 +6449,7 @@ async function menuMiembro(uid){
 // ══ MI CUENTA ══
 // ══ REGISTRO DE ERRORES ══
 // Guarda los últimos fallos para poder adjuntarlos si alguien nos escribe.
-const VERSION='2026.08';
+const VERSION='2026.08 · v67';
 let errores=[];
 function anotarError(tipo,msg,extra){
   errores.push({t:new Date().toISOString(),tipo:tipo,
@@ -7223,7 +7225,13 @@ async function exportarMisDatos(){
   toast('Datos descargados');
 }
 
+// Saber qué versión corre cada móvil deja de ser adivinanza
+function paintVersion(){
+  const el=$('ver-app');if(!el)return;
+  el.textContent='Odda '+VERSION+(enPantallaInicio()?' · instalada':' · en navegador');
+}
 function paintAdmin(){
+  paintVersion();
   // la caja de instalar solo aparece si aún no está instalada
   mostrar('bx-instalar',!enPantallaInicio());
   paintAvisosCfg();
@@ -7702,7 +7710,13 @@ function bytesAb64(buf){
 // El navegador da una dirección única; se guarda en Supabase para que
 // el servidor pueda mandarle avisos aunque la app esté cerrada.
 async function suscribirPush(){
-  if(!hayAvisos()||!swReg||!sesion)return false;
+  if(!('PushManager' in window))return 'este navegador no admite push';
+  if(!swReg){
+    // puede que aún no haya terminado de registrarse
+    try{swReg=await navigator.serviceWorker.ready}catch(e){}
+    if(!swReg)return 'el service worker no se registró (¿está sw.js subido?)';
+  }
+  if(!sesion)return 'sin sesión iniciada';
   try{
     let sub=await swReg.pushManager.getSubscription();
     if(!sub){
@@ -7712,7 +7726,7 @@ async function suscribirPush(){
       });
     }
     const j=sub.toJSON();
-    if(!j.keys||!j.keys.p256dh)return false;
+    if(!j.keys||!j.keys.p256dh)return 'el navegador no dio las claves';
     await api('l5_push_subs?on_conflict=endpoint',{
       method:'POST',
       prefer:'resolution=merge-duplicates,return=minimal',
@@ -7728,7 +7742,7 @@ async function suscribirPush(){
       })
     });
     return true;
-  }catch(e){return false}
+  }catch(e){return String((e&&e.message)||e).substring(0,140)}
 }
 
 async function desuscribirPush(){
@@ -7811,20 +7825,44 @@ function toggleAviso(k){
 }
 
 async function pedirAvisos(){
-  if(!hayAvisos()){toast('Tu navegador no permite notificaciones');return}
+  if(!('Notification' in window)){
+    alert('Este navegador no permite notificaciones.\n\nEn Android usa Chrome; en iPhone, Safari con la app añadida a la pantalla de inicio.');
+    return;
+  }
+  if(!('serviceWorker' in navigator)){
+    alert('Este navegador no permite instalar la app.\n\nSuele pasar en modo incógnito: prueba en una ventana normal.');
+    return;
+  }
   if(esIOS()&&!enPantallaInicio()){guiaInstalar();return}
+
   let permiso=Notification.permission;
-  if(permiso==='default')permiso=await Notification.requestPermission();
-  if(permiso!=='granted'){
-    toast(permiso==='denied'?'Están bloqueadas en el navegador':'No activadas');
+  if(permiso==='default'){
+    try{permiso=await Notification.requestPermission()}
+    catch(e){permiso=Notification.permission}
+  }
+  if(permiso==='denied'){
+    alert('Las notificaciones están BLOQUEADAS para esta web.\n\n'+
+      'El navegador ya no vuelve a preguntar: hay que desbloquearlas a mano.\n\n'+
+      'Chrome en Android: toca el candado junto a la dirección › Permisos › Notificaciones › Permitir.\n\n'+
+      'Si la tienes instalada: Ajustes de Android › Aplicaciones › Odda › Notificaciones.');
     paintAvisosCfg();return;
   }
+  if(permiso!=='granted'){
+    toast('No se activaron. Vuelve a intentarlo.');
+    paintAvisosCfg();return;
+  }
+
   localStorage.setItem('l5_avisos','1');
-  const ok=await suscribirPush();
+  const r=await suscribirPush();
   paintAvisosCfg();
-  avisar('Notificaciones activadas',
-    ok?'Ya está. Te avisamos aunque tengas la app cerrada.'
-      :'Activadas en este móvil. Te avisamos mientras Odda esté abierta.');
+  if(r===true){
+    avisar('Notificaciones activadas','Te avisamos aunque tengas la app cerrada.');
+  }else{
+    // permiso concedido pero la suscripción falló: se dice por qué
+    alert('Permiso concedido, pero no he podido registrar este móvil en el servidor.\n\n'+
+      'Motivo: '+(r||'desconocido')+'\n\n'+
+      'Los avisos te llegarán mientras Odda esté abierta. Prueba a cerrarla del todo y volver a entrar.');
+  }
 }
 async function quitarAvisos(){
   localStorage.setItem('l5_avisos','0');
