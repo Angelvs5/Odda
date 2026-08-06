@@ -682,6 +682,8 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
 .cm-a{font-size:12px;font-weight:600}
 .cm-i{margin-left:auto;font-family:'DM Mono',monospace;font-size:11px;color:var(--acc);background:var(--accSoft);padding:1px 7px;border-radius:6px}
 .cm-t{font-size:13.5px;line-height:1.45}
+.cm-ac{font-size:11.5px;color:var(--accInk);background:var(--accSoft);
+  border-radius:8px;padding:6px 9px;margin-top:7px;line-height:1.4}
 .cm-f{display:flex;gap:6px;margin-top:8px;align-items:center}
 .vt{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:3px 11px;font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer}
 .vt.on{background:var(--accSoft);border-color:var(--acc);color:var(--accInk)}
@@ -1378,8 +1380,6 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
     </div>
   </div>
 
-<div class="apunte" id="ver-app" style="text-align:center;margin:0 0 14px;opacity:.7">Odda</div>
-
   <div class="bx" id="bx-instalar" style="display:none">
     <div class="bx-t">Odda en tu móvil</div>
     <div style="font-size:13px;color:var(--ink2);line-height:1.55;margin-bottom:13px">
@@ -1405,11 +1405,8 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
       <button class="gb" style="width:auto;flex:0 0 auto;padding:9px 14px" onclick="abrirLimite()">Cambiar</button>
     </div>
     <div class="apunte" style="margin:12px 0 0">
-      Apostar solo es para mayores de 18 años. Si crees que se te está yendo de las manos,
-      pide ayuda: en España, la <b>línea de atención al jugador</b> es el <b>900 200 225</b>,
-      gratuita y confidencial. También puedes solicitar tu inclusión en el
-      <b>Registro General de Interdicciones de Acceso al Juego (RGIAJ)</b> para bloquear
-      tu acceso a las casas con licencia.
+      Si crees que se te está yendo de las manos, hay ayuda gratuita y confidencial en el
+      <b>900 200 225</b>. <a onclick="verLegal('juego')" style="cursor:pointer;text-decoration:underline">Más información y recursos</a>.
     </div>
   </div>
 
@@ -1498,6 +1495,7 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
 <div style="text-align:center;padding:8px 0 4px">
     <div class="odda-mark" style="font-size:19px;margin-bottom:3px">O<span>dd</span>a</div>
     <div style="font-size:11px;color:var(--ink3)">Apuestas, bank y estadísticas</div>
+    <div id="ver-app" style="font-size:10.5px;color:var(--ink3);opacity:.65;margin-top:6px"></div>
   </div>
 </div>
 
@@ -1562,8 +1560,18 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
     Habla natural: <i>«veinte euros a cuota dos diez, gana el Madrid en Bet365»</i>
   </div>
   <div class="rw">
-    <div><label class="lb" id="lb-imp">Importe</label><input class="in" id="ap-imp" type="number" step="0.5" value="5"></div>
-    <div><label class="lb">Cuota</label><input class="in" id="ap-cuo" type="number" step="0.05" value="2.00"></div>
+    <div><label class="lb" id="lb-imp">Importe</label><input class="in" id="ap-imp" type="number" step="0.5" value="5" oninput="cuotaCambia()"></div>
+    <div><label class="lb">Cuota</label><input class="in" id="ap-cuo" type="number" step="0.01" value="2.00" oninput="cuotaCambia()"></div>
+  </div>
+  <div class="rw" style="margin-bottom:14px">
+    <div style="flex:1">
+      <label class="lb">Si acierta, cobras</label>
+      <input class="in" id="ap-ret" type="number" step="0.01" style="margin-bottom:0" oninput="retornoCambia()">
+    </div>
+  </div>
+  <div class="apunte" id="ap-ret-nota" style="margin:-8px 0 14px">
+    Copia aquí lo que te diga la casa: en las combinadas la cuota que enseñan va redondeada
+    y se pierden céntimos.
   </div>
   <button class="uni-tog" id="uni-tog" onclick="toggleUnidades()">Introducir en unidades</button>
   <div class="rw">
@@ -1590,7 +1598,7 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
   <input type="hidden" id="ap-tipo" value="segura">
   <div id="ap-co-wrap" style="display:none">
     <label class="lb">Cobrado por cashout</label>
-    <input class="in" id="ap-cashout" type="number" step="0.5" placeholder="Lo que te devolvió la casa">
+    <input class="in" id="ap-cashout" type="number" step="0.01" placeholder="Lo que te devolvió la casa">
   </div>
   <div id="ap-prop-wrap"><label class="lb">Idea de quién</label>
   <select class="in" id="ap-prop"></select></div>
@@ -2438,14 +2446,26 @@ function hora(iso){try{return new Date(iso).toLocaleTimeString('es-ES',{hour:'2-
 
 function paintChips(){
   validarFiltro();
+  if(fEst==='prop'&&!esGrupo())fEst='prox';
   const fin=partidos.filter(p=>p.estado==='post').length;
   const lv=partidos.filter(p=>p.estado==='in').length;
   const prox=partidos.length-fin;
+  const nprop=esGrupo()?partidosConPropuesta().length:0;
   $('c-estado').innerHTML=
     '<button class="seg-b'+(fEst==='prox'?' on':'')+'" onclick="setEst(\'prox\')">Próximos'+
       (lv?'<span class="seg-c lv">'+lv+'</span>':(prox?'<span class="seg-c">'+prox+'</span>':''))+'</button>'+
+    // en un grupo, lo propuesto se pierde entre cientos de partidos:
+    // esta pestaña lo reúne todo sin tener que ir liga por liga
+    (esGrupo()
+      ? '<button class="seg-b'+(fEst==='prop'?' on':'')+'" onclick="setEst(\'prop\')">Propuestas'+
+        (nprop?'<span class="seg-c">'+nprop+'</span>':'')+'</button>'
+      : '')+
     '<button class="seg-b'+(fEst==='fin'?' on':'')+'" onclick="setEst(\'fin\')">Finalizados'+
       (fin?'<span class="seg-c">'+fin+'</span>':'')+'</button>';
+  // en Propuestas los filtros de competición no aplican
+  const cl=$('c-ligas');if(cl)cl.style.display=(fEst==='prop')?'none':'';
+  const db=document.querySelector('.dep-btn');
+  if(db)db.style.display=(fEst==='prop')?'none':'';
   const d=depActual();
   const di=$('dep-ico');if(di)di.textContent=d.i;
   const dn=$('dep-nom');if(dn)dn.textContent=d.n;
@@ -2507,6 +2527,7 @@ async function toggleFav(k){
   todas[deporte]=mis;
   await guardarPrefs({favs:todas});
   validarFiltro();
+  if(fEst==='prop'&&!esGrupo())fEst='prox';
   paintDeportes();paintChips();paintPartidos();
 }
 function cargarPrefsDeporte(){
@@ -2518,6 +2539,7 @@ function cargarPrefsDeporte(){
   propAbiertas = p.propAbiertas||{};
   if(p.fLiga)fLiga=p.fLiga;
   validarFiltro();
+  if(fEst==='prop'&&!esGrupo())fEst='prox';
   if(p.fEst)fEst=p.fEst;
   if(p.fPer!=null)fPer=p.fPer;
 }
@@ -2526,7 +2548,21 @@ function verMas(){
   const b=$('vermas');if(b)b.textContent='Cargando…';
   cargar();
 }
-function setEst(e){fEst=e;guardarPrefs({fEst:e});paintChips();paintPartidos();window.scrollTo(0,0)}
+function setEst(e){if(e==='prop'&&!esGrupo())e='prox';fEst=e;guardarPrefs({fEst:e});paintChips();paintPartidos();window.scrollTo(0,0)}
+
+// Encuentros que tienen alguna propuesta y todavía no han terminado.
+// Cuando el partido acaba, sale solo de aquí y pasa a Finalizados.
+function partidosConPropuesta(){
+  if(!esGrupo())return [];
+  const con={};
+  Object.keys(S.comentarios||{}).forEach(pid=>{
+    if(!(S.comentarios[pid]||[]).length)return;
+    // las combinadas guardan varios ids en la misma clave
+    const ids = pid.indexOf('combi:')===0 ? pid.slice(6).split(',') : [pid];
+    ids.forEach(id=>{con[String(id)]=1});
+  });
+  return partidos.filter(p=>con[String(p.id)] && p.estado!=='post');
+}
 function setF(k){fAp=k;paintChips();paintApuestas()}
 
 // Las combinadas se muestran dentro de su primer encuentro, no en un bloque aparte
@@ -2560,15 +2596,22 @@ function paintPropuestas(){}
 function paintPartidos(){
   paintPropuestas();
   validarFiltro();
+  if(fEst==='prop'&&!esGrupo())fEst='prox';
   const mis=favsActivas();
   let l;
-  if(fLiga==='todas') l=partidos.filter(p=>mis.includes(p.liga));
-  else                l=partidos.filter(p=>p.liga===fLiga);
-  if(fLiga==='todas'&&!l.length)l=partidos.slice();
-  l = fEst==='fin' ? l.filter(p=>p.estado==='post')
-                   : l.filter(p=>p.estado!=='post');
-  if(fEst==='fin') l.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-  else l.sort((a,b)=>(a.estado==='in'?-1:0)-(b.estado==='in'?-1:0)||new Date(a.fecha)-new Date(b.fecha));
+  if(fEst==='prop'){
+    // aquí no se filtra por competición: se enseña todo lo propuesto
+    l=partidosConPropuesta();
+    l.sort((a,b)=>(a.estado==='in'?-1:0)-(b.estado==='in'?-1:0)||new Date(a.fecha)-new Date(b.fecha));
+  }else{
+    if(fLiga==='todas') l=partidos.filter(p=>mis.includes(p.liga));
+    else                l=partidos.filter(p=>p.liga===fLiga);
+    if(fLiga==='todas'&&!l.length)l=partidos.slice();
+    l = fEst==='fin' ? l.filter(p=>p.estado==='post')
+                     : l.filter(p=>p.estado!=='post');
+    if(fEst==='fin') l.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+    else l.sort((a,b)=>(a.estado==='in'?-1:0)-(b.estado==='in'?-1:0)||new Date(a.fecha)-new Date(b.fecha));
+  }
 
   const lv=partidos.filter(p=>p.estado==='in').length;
   const sub=$('p-sub');if(sub)sub.style.display='none';
@@ -2577,13 +2620,16 @@ function paintPartidos(){
   const el=$('lista');
   if(!l.length){
     const esEuropa = fLiga==='g:europa' || (LGM[fLiga]||{}).g==='europa';
-    const msg = fEst==='fin'
+    const msg = fEst==='prop'
+      ? 'Todavía no hay propuestas.<br>Pulsa «Proponer» en cualquier encuentro para empezar.'
+      : fEst==='fin'
       ? 'Todavía no hay encuentros finalizados aquí.'
       : (esEuropa
           ? 'Esta competición aún no tiene calendario publicado.<br>Los partidos aparecerán solos en cuanto se celebre el sorteo.'
           : 'No hay próximos encuentros aquí.<br>Prueba a ampliar el rango o cambiar de competición.');
     el.innerHTML=avisoHTML()+'<div class="emp"><div class="e">'+(esEuropa?'🏆':'⚽')+'</div><div class="m">'+msg+'</div></div>'+
-      '<button class="gb" id="vermas" onclick="verMas()">'+(fEst==='fin'?'Ver semanas anteriores':'Ver más jornadas')+'</button>';
+      (fEst==='prop'?'':'<button class="gb" id="vermas" onclick="verMas()">'+
+        (fEst==='fin'?'Ver semanas anteriores':'Ver más jornadas')+'</button>');
     return;
   }
   recalcularCombis(l);
@@ -2593,7 +2639,7 @@ function paintPartidos(){
     if(k!==dia){dia=k;html+='<div class="day">'+esc(diaLbl(p.fecha))+'</div>'}
     html+=card(p);
   });
-  html+='<button class="gb" id="vermas" style="margin-top:18px" onclick="verMas()">'+
+  if(fEst!=='prop')html+='<button class="gb" id="vermas" style="margin-top:18px" onclick="verMas()">'+
     (fEst==='fin'?'Ver semanas anteriores':'Ver más jornadas')+'</button>';
   el.innerHTML=html;
 }
@@ -2651,12 +2697,25 @@ function topCmt(pid){
   return max>0?{c:best,id:bid,votos:max}:null;
 }
 function cmt(pid,c,i){
-  const y=yo(),v=(S.votos[pid]&&S.votos[pid][c.id])||[],ya=y&&v.indexOf(y)>=0,mio=y&&c.autor===y;
+  const y=yo(),v=(S.votos[pid]&&S.votos[pid][c.id])||[];
+  const ya=y&&v.some(x=>nombreVoto(x)===y), mio=y&&c.autor===y;
   const tp=topCmt(pid),lider=tp&&tp.id===c.id;
+  const pedido=(Array.isArray(c.importes)&&c.importes.length)?c.importes[0]:null;
+  // si alguien ha votado con otra cantidad, se enseña en qué queda
+  const otros=v.map(importeVoto).filter(x=>x!=null);
+  const acordado=pedido!=null?importeAcordado(v,pedido):null;
+  const hayDisenso=otros.length && acordado!=null && Math.abs(acordado-pedido)>0.009;
   return '<div class="cm'+(lider?' top':'')+'">'+(lider?'<div class="cm-top">🏆 La más votada</div>':'')+'<div class="cm-h"><span class="cm-a" style="color:'+col(c.autor)+'">'+esc(c.autor)+'</span>'+
     (impsTxt(c)?'<span class="cm-i">'+impsTxt(c)+'</span>':'')+'</div>'+
     '<div class="cm-t">'+esc(c.texto)+'</div>'+
+    (hayDisenso
+      ? '<div class="cm-ac">Con los votos, el importe sale a <b>'+eur(acordado)+'</b>'+
+        (otros.length>1?' · '+otros.length+' han puesto otra cantidad':'')+'</div>'
+      : '')+
     '<div class="cm-f"><button class="vt'+(ya?' on':'')+'" onclick="votar(\''+pid+'\',\''+c.id+'\')">👍 '+v.length+'</button>'+
+    ((!mio&&pedido!=null)
+      ? '<button class="vt" onclick="votarImporte(\''+pid+'\',\''+c.id+'\','+pedido+')" title="Votar con otro importe">👍 '+eur(pedido).replace(/\s/g,'')+'…</button>'
+      : '')+
     '<button class="vt" onclick="compartirPropuesta(\''+pid+'\',\''+c.id+'\')">↗</button>'+
     (apuestaDe(c.id)
       ? '<span class="vt hecho">✅ Registrada</span>'
@@ -2853,21 +2912,50 @@ async function hacerUndo(){
   clearTimeout(undoT);
   if(f)await f();
 }
-async function votar(pid,cid){
+async function votar(pid,cid,imp){
   const y=yo();if(!y){if(!requiereId())return;}
   const c=(S.comentarios[pid]||[]).find(x=>x.id===cid);
   if(c&&c.autor===y){toast('No puedes votarte a ti mismo');return}
   const vt=S.votos[pid]||{};
-  const ya=(vt[cid]||[]).indexOf(y)>=0;
+  const ya=(vt[cid]||[]).some(x=>nombreVoto(x)===y);
   // pintado optimista para que responda al instante
-  Object.keys(vt).forEach(k=>{vt[k]=vt[k].filter(x=>x!==y)});
-  if(!ya){if(!vt[cid])vt[cid]=[];vt[cid].push(y)}
+  Object.keys(vt).forEach(k=>{vt[k]=vt[k].filter(x=>nombreVoto(x)!==y)});
+  if(!ya){if(!vt[cid])vt[cid]=[];vt[cid].push(imp!=null?{n:y,imp:imp}:y)}
   S.votos[pid]=vt;paintPartidos();
   await api('l5_votos?partido_id=eq.'+encodeURIComponent(pid)+'&jugador=eq.'+encodeURIComponent(y),
     {method:'DELETE',prefer:'return=minimal',silencioso:true});
   if(!ya)await api('l5_votos',{method:'POST',prefer:'return=minimal',
-    body:JSON.stringify({bankroll_id:BK,grupo_id:BK,comentario_id:cid,partido_id:pid,jugador:y})});
+    body:JSON.stringify({bankroll_id:BK,grupo_id:BK,comentario_id:cid,partido_id:pid,
+      jugador:y, importe:(imp!=null?imp:null)})});
   await loadCmts();paintPartidos();
+}
+
+// Un voto puede ser el nombre a secas (los de antes) o {n,imp} si además
+// se propuso otro importe. Esto lo normaliza para no romper lo ya guardado.
+function nombreVoto(v){return (v&&typeof v==='object')?v.n:v}
+function importeVoto(v){return (v&&typeof v==='object'&&v.imp!=null)?v.imp:null}
+
+// Votar con otro importe: te parece bien el pronóstico pero no la cantidad
+function votarImporte(pid,cid,sugerido){
+  const y=yo();if(!y){if(!requiereId())return;}
+  const c=(S.comentarios[pid]||[]).find(x=>x.id===cid);
+  if(c&&c.autor===y){toast('No puedes votarte a ti mismo');return}
+  const v=prompt('¿Con cuánto entrarías tú?\n\nLa propuesta es de '+eur(sugerido)+
+    '. Pon la cantidad que te parezca y cuenta como voto.', String(sugerido));
+  if(v===null)return;
+  const n=parseFloat(String(v).replace(',','.'));
+  if(!isFinite(n)||n<=0){toast('Pon una cantidad válida');return}
+  votar(pid,cid,Math.round(n*100)/100);
+}
+
+// Qué importe sale de una votación: la mediana de lo que ha votado cada
+// uno. Más justa que la media, que un solo voto extremo desvirtúa.
+function importeAcordado(votos,pedido){
+  const l=(votos||[]).map(importeVoto).filter(x=>x!=null).sort((a,b)=>a-b);
+  if(!l.length)return pedido;
+  const m=Math.floor(l.length/2);
+  const med = l.length%2 ? l[m] : (l[m-1]+l[m])/2;
+  return Math.round(med*100)/100;
 }
 
 // ══ SELECTOR DE ENCUENTRO (solo canales) ══
@@ -2991,12 +3079,14 @@ function openLibre(){
   $('ap-auto').style.display='none';
   $('ap-liga-wrap').style.display='block';
   $('ap-desc').value='';$('ap-imp').value=5;$('ap-cuo').value='2.00';
+  cuotaCambia();
   $('ap-casa').value=ultimaCasa();llenarDeportes(ultimoDeporte());$('ap-liga').value='';
   llenarTipos('segura');$('ap-res').value='pendiente';
   if($('ap-cashout'))$('ap-cashout').value='';verCashout();
   llenarProp(null);paintPlantillas();prepararVoz();llenarRetos('');
   const ac2=$('ap-canal');if(ac2)ac2.style.display=esCanal()?'block':'none';
   cierreManual=null;
+  setTimeout(cuotaCambia,0);
   // El selector sale en todos los bankrolls. En un canal es obligatorio;
   // en personal y grupo puedes dejarlo sin encuentro y anotarla libre.
   const ew=$('ap-enc-wrap');
@@ -3056,6 +3146,7 @@ function usarPlantilla(i){
   const t=plantillas()[i];if(!t)return;
   if(t.imp!=null)$('ap-imp').value=t.imp;
   if(t.cuo!=null)$('ap-cuo').value=t.cuo;
+  cuotaCambia();
   if(t.casa)$('ap-casa').value=t.casa;
   if(t.dep)llenarDeportes(t.dep);
   if(t.tipo)$('ap-tipo').value=t.tipo;
@@ -3129,6 +3220,28 @@ function openApuesta(){
   open_('md-ap');
 }
 let modoUnidad=false;
+// La casa muestra la cuota de una combinada redondeada a dos decimales,
+// pero paga con la precisión completa. Por eso se puede introducir
+// directamente lo que cobras: de ahí sale la cuota exacta.
+let ajustandoCuota=false;
+function cuotaCambia(){
+  if(ajustandoCuota)return;
+  const imp=parseFloat($('ap-imp').value), cuo=parseFloat($('ap-cuo').value);
+  const r=$('ap-ret');if(!r)return;
+  if(!isFinite(imp)||!isFinite(cuo)||imp<=0||cuo<=0){r.value='';return}
+  ajustandoCuota=true;
+  r.value=(Math.round(imp*cuo*100)/100).toFixed(2);
+  ajustandoCuota=false;
+}
+function retornoCambia(){
+  if(ajustandoCuota)return;
+  const imp=parseFloat($('ap-imp').value), ret=parseFloat($('ap-ret').value);
+  if(!isFinite(imp)||!isFinite(ret)||imp<=0||ret<=0)return;
+  ajustandoCuota=true;
+  // seis decimales bastan para cualquier combinada y no arrastran error
+  $('ap-cuo').value=String(Math.round(ret/imp*1000000)/1000000);
+  ajustandoCuota=false;
+}
 function toggleUnidades(){
   const inp=$('ap-imp'),u=S.unidad||10;
   const v=parseFloat(inp.value);
@@ -3185,6 +3298,7 @@ function editAp(id){
   $('ap-legs').innerHTML='';
   resetUnidades();
   $('ap-desc').value=a.descripcion;$('ap-imp').value=a.importe;$('ap-cuo').value=a.cuota;
+  cuotaCambia();
   $('ap-casa').value=a.casa||'';llenarDeportes(a.deporte||'Fútbol');
   $('ap-liga-wrap').style.display=a.libre?'block':'none';
   if($('ap-liga'))$('ap-liga').value=a.libre?(a.liga||''):'';
@@ -3479,6 +3593,7 @@ function interpretarCaptura(txt){
     puestos.push(importe.toLocaleString('es-ES')+(S.moneda||'€'));
   }
   if(cuota!=null){$('ap-cuo').value=cuota.toFixed(2);puestos.push('cuota '+cuota.toFixed(2))}
+  cuotaCambia();
   if(casa){$('ap-casa').value=casa;puestos.push(casa)}
 
   ocrEstado(puestos.length
@@ -3735,6 +3850,7 @@ function interpretarVoz(txt){
   $('ap-desc').value=resto||txt.trim();
   if(importe!=null&&importe>0){$('ap-imp').value=importe;puestos.push(eur(importe))}
   if(cuota!=null&&cuota>=1){$('ap-cuo').value=cuota.toFixed(2);puestos.push('cuota '+cuota.toFixed(2))}
+  cuotaCambia();
   if(casa){
     const bonito={bet365:'Bet365',winamax:'Winamax',bwin:'Bwin',codere:'Codere',betfair:'Betfair',
       '888sport':'888sport',sportium:'Sportium',luckia:'Luckia',retabet:'Retabet',marathonbet:'Marathonbet'};
@@ -6722,10 +6838,9 @@ const LEGAL={
 <p>Apostar debe ser un entretenimiento, nunca una forma de ganar dinero ni de recuperar lo perdido.</p>
 <p><b>Señales de alarma:</b> apostar más de lo que puedes permitirte, subir importes para recuperar pérdidas, esconderlo a los que te rodean, o que te quite el sueño.</p>
 <p>Si crees que se te está yendo de las manos, hay ayuda gratuita y confidencial:</p>
-<p><b>FEJAR</b> — Federación Española de Jugadores de Azar Rehabilitados<br>900 200 225 · fejar.org</p>
-<p><b>Línea de atención al ludópata</b><br>900 200 225</p>
-<p>También puedes autoprohibirte el acceso al juego en España a través del Registro General de Interdicciones de Acceso al Juego (RGIAJ), en ordenacionjuego.es</p>
-<p style="margin-top:14px"><b>Odda no es un operador de juego</b> y no acepta apuestas. Es una herramienta de registro.</p>`}
+<p><b>900 200 225</b> — línea de atención al jugador, gratuita y confidencial. La atiende FEJAR, la Federación Española de Jugadores de Azar Rehabilitados (fejar.org).</p>
+<p>También puedes pedir que te prohíban el acceso a las casas con licencia en España, a través del Registro General de Interdicciones de Acceso al Juego (RGIAJ), en ordenacionjuego.es</p>
+<p style="margin-top:14px"><b>Odda no es un operador de juego.</b> No acepta apuestas ni mueve dinero: es una herramienta para llevar la cuenta.</p>`}
 };
 function verLegal(k){
   const l=LEGAL[k];if(!l)return;
