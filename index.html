@@ -6397,7 +6397,7 @@ function aplicarModo(){
   const c=esCanal();
   const social=g||c;
   const seg=soySeguidor();
-  const mostrar=(id,ok,disp)=>{const e=$(id);if(e)e.style.display=ok?(disp||'block'):'none'};
+
   // El seguidor no explora partidos: los elige el tipster
   mostrar('nb-partidos',!seg,'flex');
   mostrar('s-turno-card',hayLoca());
@@ -6610,7 +6610,7 @@ async function menuMiembro(uid){
 // ══ MI CUENTA ══
 // ══ REGISTRO DE ERRORES ══
 // Guarda los últimos fallos para poder adjuntarlos si alguien nos escribe.
-const VERSION='v71 · 6 ago';
+const VERSION='v72 · 6 ago';
 let errores=[];
 function anotarError(tipo,msg,extra){
   errores.push({t:new Date().toISOString(),tipo:tipo,
@@ -7268,6 +7268,12 @@ async function guardarMoneda(){
   pintarSwitches();paintAll();
   toast('Moneda: '+v);
 }
+// Enseñar u ocultar un bloque. Estaba dentro de pintarSwitches y por eso
+// reventaba en cualquier otro sitio que la usara.
+function mostrar(id,ok,disp){
+  const e=$(id);
+  if(e)e.style.display = ok ? (disp||'block') : 'none';
+}
 function pintarSwitches(){
   aplicarTema();
   const v=vistaImportes();
@@ -7589,6 +7595,7 @@ async function pasarTurno(){
   paintHead();paintGrupo();
   toast('Turno: '+siguiente);
 }
+let tickT=null;
 function tick(){
   if(tickT)clearTimeout(tickT);
   const hayLive=partidos.some(p=>p.estado==='in');
