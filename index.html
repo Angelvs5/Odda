@@ -196,13 +196,8 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
   color:var(--ink2);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .mic-b svg{width:19px;height:19px}
 .mic-b:active{background:var(--soft)}
-.ret-linea{display:flex;align-items:center;gap:10px;background:var(--soft);
-  border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--ink2)}
-.ret-linea b{color:var(--ink);font-weight:600}
-.ret-aj{margin-left:auto;flex-shrink:0;background:none;border:1px solid var(--line2);
-  border-radius:99px;padding:4px 11px;font-family:inherit;font-size:11.5px;
-  color:var(--ink3);cursor:pointer}
-.ret-aj:active{background:var(--card)}
+.trio-x{flex:0 0 auto;align-self:center;padding-top:16px;font-size:15px;
+  color:var(--ink3);font-weight:600}
 .mic-b.grabando{color:#fff;background:var(--no);border-color:var(--no);animation:pulsoMic 1.2s infinite}
 .voz-est{font-size:12px;color:var(--ink2);line-height:1.5;margin:-6px 0 14px}
 .fuerza{height:3px;border-radius:99px;background:var(--soft2);margin:-6px 0 14px;overflow:hidden}
@@ -1567,12 +1562,15 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
     Habla natural: <i>«veinte euros a cuota dos diez, gana el Madrid en Bet365»</i>
   </div>
   <div class="rw">
-    <div><label class="lb" id="lb-imp">Importe</label><input class="in" id="ap-imp" type="number" step="0.5" value="5" oninput="cuotaCambia()"></div>
-    <div><label class="lb">Cuota</label><input class="in" id="ap-cuo" type="number" step="0.01" value="2.00" oninput="cuotaCambia()"></div>
+    <div><label class="lb" id="lb-imp">Apuestas</label><input class="in" id="ap-imp" type="number" step="0.5" value="5" oninput="recalcDesde('imp')"></div>
+    <div class="trio-x">×</div>
+    <div><label class="lb">Cuota</label><input class="in" id="ap-cuo" type="number" step="0.01" value="2.00" oninput="recalcDesde('cuo')"></div>
+    <div class="trio-x">=</div>
+    <div><label class="lb">Cobras</label><input class="in" id="ap-ret" type="number" step="0.01" oninput="recalcDesde('ret')"></div>
   </div>
-  <div class="ret-linea" id="ap-ret-linea">
-    <span>Si acierta cobras <b id="ap-ret-val">—</b></span>
-    <button type="button" class="ret-aj" onclick="ajustarRetorno()">No cuadra</button>
+  <div class="apunte" style="margin:-4px 0 14px">
+    Rellena dos y el tercero sale solo. Si la casa te da otra cifra, escríbela
+    en <b>Cobras</b> y la cuota se ajusta al céntimo.
   </div>
   <button class="uni-tog" id="uni-tog" onclick="toggleUnidades()">Introducir en unidades</button>
   <div class="rw">
@@ -3258,37 +3256,30 @@ let modoUnidad=false;
 // La casa muestra la cuota de una combinada redondeada a dos decimales,
 // pero paga con la precisión completa. Por eso se puede introducir
 // directamente lo que cobras: de ahí sale la cuota exacta.
-function retornoActual(){
-  const imp=parseFloat($('ap-imp').value), cuo=parseFloat($('ap-cuo').value);
-  if(!isFinite(imp)||!isFinite(cuo)||imp<=0||cuo<=0)return null;
-  return Math.round(imp*cuo*100)/100;
+// Importe × cuota = cobro. Se rellenan dos y el que falta sale solo.
+// Lo último que tocas manda: si escribes el cobro, la cuota se recalcula
+// con toda la precisión, que es lo que arregla los céntimos de las
+// combinadas (la casa enseña la cuota redondeada y paga con más decimales).
+let recalculando=false;
+function recalcDesde(campo){
+  if(recalculando)return;
+  const eI=$('ap-imp'), eC=$('ap-cuo'), eR=$('ap-ret');
+  if(!eI||!eC||!eR)return;
+  const imp=parseFloat(eI.value), cuo=parseFloat(eC.value), ret=parseFloat(eR.value);
+  recalculando=true;
+  if(campo==='ret'){
+    if(isFinite(imp)&&imp>0&&isFinite(ret)&&ret>0)
+      eC.value=String(Math.round(ret/imp*1000000)/1000000);
+  }else{
+    if(isFinite(imp)&&imp>0&&isFinite(cuo)&&cuo>0)
+      eR.value=(Math.round(imp*cuo*100)/100).toFixed(2);
+    else eR.value='';
+  }
+  recalculando=false;
 }
-function cuotaCambia(){
-  const v=$('ap-ret-val');if(!v)return;
-  const r=retornoActual();
-  v.textContent = r==null ? '—' : eur(r);
-}
-// Solo se toca si no cuadra. La cuota que enseña la casa en una combinada
-// va redondeada y paga con más decimales: de ahí salen los céntimos que
-// bailan. Aquí se corrige antes de que empiece el encuentro, nunca después.
-function ajustarRetorno(){
-  // En un canal la cuota es parte de lo publicado. Editarla con el
-  // encuentro ya empezado permitiría maquillar resultados a posteriori,
-  // así que el propio formulario ya está bloqueado a esas alturas.
-  const imp=parseFloat($('ap-imp').value);
-  if(!isFinite(imp)||imp<=0){toast('Pon primero el importe');return}
-  const actual=retornoActual();
-  const r=prompt('¿Cuánto cobras exactamente si acierta?\n\n'+
-    'Cópialo de la casa. Ajustaré la cuota para que cuadre al céntimo.',
-    actual!=null?String(actual):'');
-  if(r===null)return;
-  const n=parseFloat(String(r).replace(',','.'));
-  if(!isFinite(n)||n<=imp){toast('Tiene que ser mayor que el importe');return}
-  // seis decimales bastan para cualquier combinada y no arrastran error
-  $('ap-cuo').value=String(Math.round(n/imp*1000000)/1000000);
-  cuotaCambia();
-  toast('Cuota ajustada a '+$('ap-cuo').value);
-}
+// se mantiene el nombre viejo porque lo llaman voz, OCR y edición
+function cuotaCambia(){recalcDesde('cuo')}
+
 function toggleUnidades(){
   const inp=$('ap-imp'),u=S.unidad||10;
   const v=parseFloat(inp.value);
@@ -4441,14 +4432,11 @@ function puedeResolver(a){
 }
 function filaResolver(a,esPend){
   if(!esPend||!puedoApostar())return '';
-  const lapiz='<button class="tb ico" style="flex:0 0 auto;padding:8px 12px" onclick="editAp(\''+a.id+'\')" aria-label="Editar">'+
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+ICONOS.editar+'</svg></button>';
-  // mientras no haya empezado no hay nada que resolver, y editar
-  // ya está en los iconos del pie: no hace falta repetirlo aquí
+  // mientras no haya empezado no hay nada que resolver, y editar ya
+  // está en los iconos del pie: repetirlo aquí duplicaba el lápiz
   if(!puedeResolver(a))return '';
   return '<div class="av-b"><button class="av-g" onclick="resolver(\''+a.id+'\',\'ganada\')">Ganada</button>'+
-    '<button class="av-n" onclick="resolver(\''+a.id+'\',\'perdida\')">Perdida</button>'+
-    (bloqueada(a)?'':lapiz)+'</div>';
+    '<button class="av-n" onclick="resolver(\''+a.id+'\',\'perdida\')">Perdida</button></div>';
 }
 
 // Debajo del título: el marcador real cuando lo sabemos, y cuándo se
@@ -6336,6 +6324,7 @@ async function cambiarBankroll(id){
   paintAll();
   if(!soySeguidor())await cargar();
   nav(inicio());
+  window.scrollTo(0,0);
   toast(S.nombre);
 }
 async function borrarBankroll(id,ev){
