@@ -196,6 +196,13 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
   color:var(--ink2);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .mic-b svg{width:19px;height:19px}
 .mic-b:active{background:var(--soft)}
+.ret-linea{display:flex;align-items:center;gap:10px;background:var(--soft);
+  border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--ink2)}
+.ret-linea b{color:var(--ink);font-weight:600}
+.ret-aj{margin-left:auto;flex-shrink:0;background:none;border:1px solid var(--line2);
+  border-radius:99px;padding:4px 11px;font-family:inherit;font-size:11.5px;
+  color:var(--ink3);cursor:pointer}
+.ret-aj:active{background:var(--card)}
 .mic-b.grabando{color:#fff;background:var(--no);border-color:var(--no);animation:pulsoMic 1.2s infinite}
 .voz-est{font-size:12px;color:var(--ink2);line-height:1.5;margin:-6px 0 14px}
 .fuerza{height:3px;border-radius:99px;background:var(--soft2);margin:-6px 0 14px;overflow:hidden}
@@ -1563,15 +1570,9 @@ h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.0
     <div><label class="lb" id="lb-imp">Importe</label><input class="in" id="ap-imp" type="number" step="0.5" value="5" oninput="cuotaCambia()"></div>
     <div><label class="lb">Cuota</label><input class="in" id="ap-cuo" type="number" step="0.01" value="2.00" oninput="cuotaCambia()"></div>
   </div>
-  <div class="rw" style="margin-bottom:14px">
-    <div style="flex:1">
-      <label class="lb">Si acierta, cobras</label>
-      <input class="in" id="ap-ret" type="number" step="0.01" style="margin-bottom:0" oninput="retornoCambia()">
-    </div>
-  </div>
-  <div class="apunte" id="ap-ret-nota" style="margin:-8px 0 14px">
-    Copia aquí lo que te diga la casa: en las combinadas la cuota que enseñan va redondeada
-    y se pierden céntimos.
+  <div class="ret-linea" id="ap-ret-linea">
+    <span>Si acierta cobras <b id="ap-ret-val">—</b></span>
+    <button type="button" class="ret-aj" onclick="ajustarRetorno()">No cuadra</button>
   </div>
   <button class="uni-tog" id="uni-tog" onclick="toggleUnidades()">Introducir en unidades</button>
   <div class="rw">
@@ -2483,9 +2484,13 @@ function setLiga(k){fLiga=k;guardarPrefs({fLiga:k});paintChips();paintPartidos()
 
 // Qué encuentros tienen las propuestas desplegadas. Es cosa de cada uno.
 let propAbiertas={};
-function abiertoProp(pid){return !!propAbiertas[pid]}
+// El estado va por pestaña: desplegar algo en Propuestas no debe
+// desplegarlo también en Próximos, son dos vistas independientes.
+function claveProp(pid){return fEst+':'+pid}
+function abiertoProp(pid){return !!propAbiertas[claveProp(pid)]}
 function plegarProp(pid){
-  propAbiertas[pid]=!propAbiertas[pid];
+  const k=claveProp(pid);
+  propAbiertas[k]=!propAbiertas[k];
   guardarPrefs({propAbiertas:propAbiertas});
   paintPartidos();
 }
@@ -2701,6 +2706,8 @@ function cmt(pid,c,i){
   const ya=y&&v.some(x=>nombreVoto(x)===y), mio=y&&c.autor===y;
   const tp=topCmt(pid),lider=tp&&tp.id===c.id;
   const pedido=(Array.isArray(c.importes)&&c.importes.length)?c.importes[0]:null;
+  const miVoto=v.find(x=>nombreVoto(x)===y);
+  const miImporte=miVoto?importeVoto(miVoto):null;
   // si alguien ha votado con otra cantidad, se enseña en qué queda
   const otros=v.map(importeVoto).filter(x=>x!=null);
   const acordado=pedido!=null?importeAcordado(v,pedido):null;
@@ -2712,9 +2719,15 @@ function cmt(pid,c,i){
       ? '<div class="cm-ac">Con los votos, el importe sale a <b>'+eur(acordado)+'</b>'+
         (otros.length>1?' · '+otros.length+' han puesto otra cantidad':'')+'</div>'
       : '')+
-    '<div class="cm-f"><button class="vt'+(ya?' on':'')+'" onclick="votar(\''+pid+'\',\''+c.id+'\')">👍 '+v.length+'</button>'+
-    ((!mio&&pedido!=null)
-      ? '<button class="vt" onclick="votarImporte(\''+pid+'\',\''+c.id+'\','+pedido+')" title="Votar con otro importe">👍 '+eur(pedido).replace(/\s/g,'')+'…</button>'
+    '<div class="cm-f">'+
+    // Voto simple: me parece bien tal cual
+    '<button class="vt'+(ya&&miImporte==null?' on':'')+'" onclick="votar(\''+pid+'\',\''+c.id+'\')" '+
+      'title="Me parece bien">👍 '+v.length+'</button>'+
+    // Voto con otra cantidad: mismo apoyo, distinto importe
+    ((!mio&&pedido!=null&&!bloqueadaProp(pid))
+      ? '<button class="vt'+(miImporte!=null?' on':'')+'" onclick="votarImporte(\''+pid+'\',\''+c.id+'\','+pedido+')" '+
+        'title="Me parece bien, pero con otro importe">'+
+        (miImporte!=null?'👍 '+eur(miImporte):'👍 con otro importe')+'</button>'
       : '')+
     '<button class="vt" onclick="compartirPropuesta(\''+pid+'\',\''+c.id+'\')">↗</button>'+
     (apuestaDe(c.id)
@@ -2912,12 +2925,15 @@ async function hacerUndo(){
   clearTimeout(undoT);
   if(f)await f();
 }
-async function votar(pid,cid,imp){
+// `imp` fija un importe. `forzar` mantiene el voto aunque ya existiera,
+// que es lo que hace falta al cambiar solo la cantidad.
+async function votar(pid,cid,imp,forzar){
   const y=yo();if(!y){if(!requiereId())return;}
   const c=(S.comentarios[pid]||[]).find(x=>x.id===cid);
   if(c&&c.autor===y){toast('No puedes votarte a ti mismo');return}
+  if(bloqueadaProp(pid)){toast('El encuentro ya ha empezado');return}
   const vt=S.votos[pid]||{};
-  const ya=(vt[cid]||[]).some(x=>nombreVoto(x)===y);
+  const ya=forzar?false:(vt[cid]||[]).some(x=>nombreVoto(x)===y);
   // pintado optimista para que responda al instante
   Object.keys(vt).forEach(k=>{vt[k]=vt[k].filter(x=>nombreVoto(x)!==y)});
   if(!ya){if(!vt[cid])vt[cid]=[];vt[cid].push(imp!=null?{n:y,imp:imp}:y)}
@@ -2935,17 +2951,36 @@ async function votar(pid,cid,imp){
 function nombreVoto(v){return (v&&typeof v==='object')?v.n:v}
 function importeVoto(v){return (v&&typeof v==='object'&&v.imp!=null)?v.imp:null}
 
+// Se puede cambiar el voto y el importe mientras el encuentro no empiece.
+// Después ya no: la apuesta se registra con lo que se acordó.
+function bloqueadaProp(pid){
+  const ids = String(pid).indexOf('combi:')===0 ? String(pid).slice(6).split(',') : [pid];
+  return ids.some(id=>{
+    const p=partidos.find(x=>String(x.id)===String(id));
+    return p && (p.estado==='in' || p.estado==='post');
+  });
+}
+
 // Votar con otro importe: te parece bien el pronóstico pero no la cantidad
 function votarImporte(pid,cid,sugerido){
   const y=yo();if(!y){if(!requiereId())return;}
   const c=(S.comentarios[pid]||[]).find(x=>x.id===cid);
   if(c&&c.autor===y){toast('No puedes votarte a ti mismo');return}
-  const v=prompt('¿Con cuánto entrarías tú?\n\nLa propuesta es de '+eur(sugerido)+
-    '. Pon la cantidad que te parezca y cuenta como voto.', String(sugerido));
-  if(v===null)return;
-  const n=parseFloat(String(v).replace(',','.'));
+  if(bloqueadaProp(pid)){toast('El encuentro ya ha empezado');return}
+  const v=(S.votos[pid]&&S.votos[pid][cid])||[];
+  const mio=v.find(x=>nombreVoto(x)===y);
+  const actual=mio?importeVoto(mio):null;
+  const r=prompt('¿Con cuánto entrarías tú?\n\n'+
+    'La propuesta es de '+eur(sugerido)+'. Cuenta igual como voto a favor.\n'+
+    'Déjalo vacío para votar sin proponer importe.',
+    String(actual!=null?actual:sugerido));
+  if(r===null)return;
+  if(String(r).trim()===''){votar(pid,cid);return}
+  const n=parseFloat(String(r).replace(',','.'));
   if(!isFinite(n)||n<=0){toast('Pon una cantidad válida');return}
-  votar(pid,cid,Math.round(n*100)/100);
+  // si ya tenías ese mismo importe, se deja como está en vez de quitarlo
+  if(actual!=null&&Math.abs(actual-n)<0.005){toast('Ya habías votado esa cantidad');return}
+  votar(pid,cid,Math.round(n*100)/100,true);
 }
 
 // Qué importe sale de una votación: la mediana de lo que ha votado cada
@@ -3223,24 +3258,36 @@ let modoUnidad=false;
 // La casa muestra la cuota de una combinada redondeada a dos decimales,
 // pero paga con la precisión completa. Por eso se puede introducir
 // directamente lo que cobras: de ahí sale la cuota exacta.
-let ajustandoCuota=false;
-function cuotaCambia(){
-  if(ajustandoCuota)return;
+function retornoActual(){
   const imp=parseFloat($('ap-imp').value), cuo=parseFloat($('ap-cuo').value);
-  const r=$('ap-ret');if(!r)return;
-  if(!isFinite(imp)||!isFinite(cuo)||imp<=0||cuo<=0){r.value='';return}
-  ajustandoCuota=true;
-  r.value=(Math.round(imp*cuo*100)/100).toFixed(2);
-  ajustandoCuota=false;
+  if(!isFinite(imp)||!isFinite(cuo)||imp<=0||cuo<=0)return null;
+  return Math.round(imp*cuo*100)/100;
 }
-function retornoCambia(){
-  if(ajustandoCuota)return;
-  const imp=parseFloat($('ap-imp').value), ret=parseFloat($('ap-ret').value);
-  if(!isFinite(imp)||!isFinite(ret)||imp<=0||ret<=0)return;
-  ajustandoCuota=true;
+function cuotaCambia(){
+  const v=$('ap-ret-val');if(!v)return;
+  const r=retornoActual();
+  v.textContent = r==null ? '—' : eur(r);
+}
+// Solo se toca si no cuadra. La cuota que enseña la casa en una combinada
+// va redondeada y paga con más decimales: de ahí salen los céntimos que
+// bailan. Aquí se corrige antes de que empiece el encuentro, nunca después.
+function ajustarRetorno(){
+  // En un canal la cuota es parte de lo publicado. Editarla con el
+  // encuentro ya empezado permitiría maquillar resultados a posteriori,
+  // así que el propio formulario ya está bloqueado a esas alturas.
+  const imp=parseFloat($('ap-imp').value);
+  if(!isFinite(imp)||imp<=0){toast('Pon primero el importe');return}
+  const actual=retornoActual();
+  const r=prompt('¿Cuánto cobras exactamente si acierta?\n\n'+
+    'Cópialo de la casa. Ajustaré la cuota para que cuadre al céntimo.',
+    actual!=null?String(actual):'');
+  if(r===null)return;
+  const n=parseFloat(String(r).replace(',','.'));
+  if(!isFinite(n)||n<=imp){toast('Tiene que ser mayor que el importe');return}
   // seis decimales bastan para cualquier combinada y no arrastran error
-  $('ap-cuo').value=String(Math.round(ret/imp*1000000)/1000000);
-  ajustandoCuota=false;
+  $('ap-cuo').value=String(Math.round(n/imp*1000000)/1000000);
+  cuotaCambia();
+  toast('Cuota ajustada a '+$('ap-cuo').value);
 }
 function toggleUnidades(){
   const inp=$('ap-imp'),u=S.unidad||10;
